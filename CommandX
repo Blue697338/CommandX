@@ -69,7 +69,7 @@ helpTitle.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 helpTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 helpTitle.Font = Enum.Font.SourceSansBold
 helpTitle.TextSize = 20
-helpTitle.Text = "Admin Commands Help"
+helpTitle.Text = "CommandX Help"
 helpTitle.Parent = helpGui
 
 -- Help Close Button
@@ -107,6 +107,9 @@ local commands = {
 	["/speed"] = "Change WalkSpeed. Usage: /speed [number]",
 	["/time"] = "Change game time. Usage: /time [number]",
 	["/spin"] = "Make your character spin continuously.",
+	["/stopspin"] = "Stop spinning.",
+	["/fly"] = "Enable flying mode. Use WASD to move.",
+	["/unfly"] = "Disable flying mode."
 }
 
 local function getHelpText()
@@ -196,6 +199,59 @@ cmdBox.FocusLost:Connect(function(enterPressed)
 	elseif cmd == "/stopspin" then
 		stopSpinning()
 		outputLabel.Text = "Spinning stopped."
+
+	elseif cmd == "/fly" then
+		local char = player.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			if char.HumanoidRootPart:FindFirstChild("FlyVelocity") then
+				outputLabel.Text = "Already flying!"
+			else
+				local bodyVelocity = Instance.new("BodyVelocity")
+				bodyVelocity.Name = "FlyVelocity"
+				bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+				bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+				bodyVelocity.Parent = char.HumanoidRootPart
+
+				-- Fly control loop
+				task.spawn(function()
+					while bodyVelocity.Parent do
+						task.wait()
+						if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+							local moveDir = Vector3.zero
+							if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+								moveDir = moveDir + workspace.CurrentCamera.CFrame.LookVector
+							end
+							if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+								moveDir = moveDir - workspace.CurrentCamera.CFrame.LookVector
+							end
+							if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+								moveDir = moveDir - workspace.CurrentCamera.CFrame.RightVector
+							end
+							if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+								moveDir = moveDir + workspace.CurrentCamera.CFrame.RightVector
+							end
+							if moveDir.Magnitude > 0 then
+								moveDir = moveDir.Unit
+							end
+							bodyVelocity.Velocity = moveDir * 50 -- Fly speed
+						end
+					end
+				end)
+
+				outputLabel.Text = "You are now flying. Use WASD to move."
+			end
+		else
+			outputLabel.Text = "Character or HumanoidRootPart not found."
+		end
+
+	elseif cmd == "/unfly" then
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if hrp and hrp:FindFirstChild("FlyVelocity") then
+			hrp.FlyVelocity:Destroy()
+			outputLabel.Text = "You stopped flying."
+		else
+			outputLabel.Text = "You are not flying."
+		end
 
 	elseif cmd ~= "" then
 		outputLabel.Text = "Unknown command: " .. cmd
