@@ -1,0 +1,170 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create main ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AdminGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+screenGui.Enabled = true
+
+-- Command Bar Frame
+local cmdBar = Instance.new("Frame")
+cmdBar.Size = UDim2.new(0, 400, 0, 50)
+cmdBar.Position = UDim2.new(0.5, -200, 0, 10)
+cmdBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+cmdBar.BorderSizePixel = 0
+cmdBar.Name = "CmdBar"
+cmdBar.Parent = screenGui
+cmdBar.Active = true
+cmdBar.Draggable = true
+
+-- Command TextBox
+local cmdBox = Instance.new("TextBox")
+cmdBox.Size = UDim2.new(0, 250, 0, 30)
+cmdBox.Position = UDim2.new(0, 10, 0, 10)
+cmdBox.PlaceholderText = "Enter command..."
+cmdBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+cmdBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+cmdBox.ClearTextOnFocus = false
+cmdBox.Name = "CmdBox"
+cmdBox.Parent = cmdBar
+cmdBox.Font = Enum.Font.SourceSans
+cmdBox.TextSize = 18
+cmdBox.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Command Output Label (for feedback)
+local outputLabel = Instance.new("TextLabel")
+outputLabel.Size = UDim2.new(1, -270, 1, -20)
+outputLabel.Position = UDim2.new(0, 270, 0, 10)
+outputLabel.BackgroundTransparency = 1
+outputLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+outputLabel.TextWrapped = true
+outputLabel.TextYAlignment = Enum.TextYAlignment.Top
+outputLabel.TextXAlignment = Enum.TextXAlignment.Left
+outputLabel.Font = Enum.Font.SourceSans
+outputLabel.TextSize = 16
+outputLabel.Text = ""
+outputLabel.Parent = cmdBar
+
+-- Help GUI (initially invisible)
+local helpGui = Instance.new("Frame")
+helpGui.Size = UDim2.new(0, 300, 0, 400)
+helpGui.Position = UDim2.new(0.5, -150, 0.5, -200)
+helpGui.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+helpGui.BorderSizePixel = 0
+helpGui.Name = "HelpGUI"
+helpGui.Parent = screenGui
+helpGui.Visible = false
+helpGui.Active = true
+helpGui.Draggable = true
+
+-- Help Title
+local helpTitle = Instance.new("TextLabel")
+helpTitle.Size = UDim2.new(1, 0, 0, 40)
+helpTitle.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+helpTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+helpTitle.Font = Enum.Font.SourceSansBold
+helpTitle.TextSize = 20
+helpTitle.Text = "CommandX Help"
+helpTitle.Parent = helpGui
+
+-- Help Close Button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 40, 0, 40)
+closeBtn.Position = UDim2.new(1, -45, 0, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 24
+closeBtn.Text = "X"
+closeBtn.Parent = helpGui
+
+closeBtn.MouseButton1Click:Connect(function()
+	helpGui.Visible = false
+end)
+
+-- Help Text Label (scrollable)
+local helpTextLabel = Instance.new("TextLabel")
+helpTextLabel.Size = UDim2.new(1, -20, 1, -50)
+helpTextLabel.Position = UDim2.new(0, 10, 0, 40)
+helpTextLabel.BackgroundTransparency = 1
+helpTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+helpTextLabel.TextWrapped = true
+helpTextLabel.TextYAlignment = Enum.TextYAlignment.Top
+helpTextLabel.TextXAlignment = Enum.TextXAlignment.Left
+helpTextLabel.Font = Enum.Font.SourceSans
+helpTextLabel.TextSize = 16
+helpTextLabel.Text = ""
+helpTextLabel.Parent = helpGui
+
+-- Commands List
+local commands = {
+	["/help"] = "Show this help window.",
+	["/speed"] = "Change WalkSpeed. Usage: /speed [number]",
+	["/time"] = "Change game time. Usage: /time [number]",
+}
+
+local function getHelpText()
+	local text = ""
+	for cmd, desc in pairs(commands) do
+		text = text .. cmd .. " - " .. desc .. "\n\n"
+	end
+	return text
+end
+
+-- Toggle Command Bar visibility with M or T
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+
+	if input.KeyCode == Enum.KeyCode.M or input.KeyCode == Enum.KeyCode.T then
+		screenGui.Enabled = not screenGui.Enabled
+		if screenGui.Enabled then
+			cmdBox:CaptureFocus()
+		end
+	end
+end)
+
+-- Execute commands when pressing enter in command box
+cmdBox.FocusLost:Connect(function(enterPressed)
+	if not enterPressed then return end
+
+	local text = cmdBox.Text
+	cmdBox.Text = ""
+	outputLabel.Text = ""
+
+	local args = {}
+	for word in string.gmatch(text, "%S+") do
+		table.insert(args, word)
+	end
+	local cmd = args[1] and args[1]:lower() or ""
+
+	if cmd == "/help" then
+		helpTextLabel.Text = getHelpText()
+		helpGui.Visible = true
+
+	elseif cmd == "/speed" then
+		local speed = tonumber(args[2])
+		if speed and player.Character and player.Character:FindFirstChild("Humanoid") then
+			player.Character.Humanoid.WalkSpeed = speed
+			outputLabel.Text = "Speed set to " .. speed
+		else
+			outputLabel.Text = "Invalid speed."
+		end
+
+	elseif cmd == "/time" then
+		local timeVal = tonumber(args[2])
+		if timeVal then
+			game.Lighting.ClockTime = timeVal
+			outputLabel.Text = "Time set to " .. timeVal
+		else
+			outputLabel.Text = "Invalid time."
+		end
+
+	elseif cmd ~= "" then
+		outputLabel.Text = "Unknown command: " .. cmd
+	end
+end)
