@@ -4,14 +4,12 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Create main ScreenGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AdminGUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 screenGui.Enabled = true
 
--- Command Bar Frame
 local cmdBar = Instance.new("Frame")
 cmdBar.Size = UDim2.new(0, 400, 0, 50)
 cmdBar.Position = UDim2.new(0.5, -200, 0, 10)
@@ -22,7 +20,6 @@ cmdBar.Parent = screenGui
 cmdBar.Active = true
 cmdBar.Draggable = true
 
--- Command TextBox
 local cmdBox = Instance.new("TextBox")
 cmdBox.Size = UDim2.new(0, 250, 0, 30)
 cmdBox.Position = UDim2.new(0, 10, 0, 10)
@@ -36,7 +33,6 @@ cmdBox.Font = Enum.Font.SourceSans
 cmdBox.TextSize = 18
 cmdBox.TextXAlignment = Enum.TextXAlignment.Left
 
--- Command Output Label (for feedback)
 local outputLabel = Instance.new("TextLabel")
 outputLabel.Size = UDim2.new(1, -270, 1, -20)
 outputLabel.Position = UDim2.new(0, 270, 0, 10)
@@ -50,7 +46,6 @@ outputLabel.TextSize = 16
 outputLabel.Text = ""
 outputLabel.Parent = cmdBar
 
--- Help GUI (initially invisible)
 local helpGui = Instance.new("Frame")
 helpGui.Size = UDim2.new(0, 300, 0, 400)
 helpGui.Position = UDim2.new(0.5, -150, 0.5, -200)
@@ -62,7 +57,6 @@ helpGui.Visible = false
 helpGui.Active = true
 helpGui.Draggable = true
 
--- Help Title
 local helpTitle = Instance.new("TextLabel")
 helpTitle.Size = UDim2.new(1, 0, 0, 40)
 helpTitle.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -72,7 +66,6 @@ helpTitle.TextSize = 20
 helpTitle.Text = "CommandX Help"
 helpTitle.Parent = helpGui
 
--- Help Close Button
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 40, 0, 40)
 closeBtn.Position = UDim2.new(1, -45, 0, 0)
@@ -84,10 +77,9 @@ closeBtn.Text = "X"
 closeBtn.Parent = helpGui
 
 closeBtn.MouseButton1Click:Connect(function()
-	helpGui.Visible = false
+    helpGui.Visible = false
 end)
 
--- Help Text Label (scrollable)
 local helpTextLabel = Instance.new("TextLabel")
 helpTextLabel.Size = UDim2.new(1, -20, 1, -50)
 helpTextLabel.Position = UDim2.new(0, 10, 0, 40)
@@ -101,159 +93,185 @@ helpTextLabel.TextSize = 16
 helpTextLabel.Text = ""
 helpTextLabel.Parent = helpGui
 
--- Commands List
 local commands = {
-	["/help"] = "Show this help window.",
-	["/speed"] = "Change WalkSpeed. Usage: /speed [number]",
-	["/time"] = "Change game time. Usage: /time [number]",
-	["/spin"] = "Make your character spin continuously.",
-	["/stopspin"] = "Stop spinning.",
-	["/fly"] = "Enable flying mode. Use WASD to move.",
-	["/unfly"] = "Disable flying mode."
+    ["/cmds"] = "Show this command list.",
+    ["/help"] = "Show this command list.",
+    ["/sit"] = "Sit down.",
+    ["/float"] = "Float above the ground.",
+    ["/unfloat"] = "Stop floating.",
+    ["/fly"] = "Toggle flying mode."
 }
 
 local function getHelpText()
-	local text = ""
-	for cmd, desc in pairs(commands) do
-		text = text .. cmd .. " - " .. desc .. "\n\n"
-	end
-	return text
+    local text = ""
+    for cmd, desc in pairs(commands) do
+        text = text .. cmd .. " - " .. desc .. "\n\n"
+    end
+    return text
 end
 
--- Variable to keep track of spinning coroutine so we can stop it later if needed
-local spinCoroutine
-local spinning = false
-
-local function startSpinning()
-	if spinning then return end
-	spinning = true
-
-	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-		local hrp = player.Character.HumanoidRootPart
-		spinCoroutine = coroutine.create(function()
-			while spinning and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do
-				hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(5), 0)
-				wait(0.03)
-			end
-		end)
-		coroutine.resume(spinCoroutine)
-	end
+-- Sit function
+local function sitPlayer(plr)
+    local char = plr.Character
+    if not char then return false end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.Sit = true
+        return true
+    end
+    return false
 end
 
-local function stopSpinning()
-	spinning = false
+-- Float functions
+local function floatPlayer(plr)
+    local char = plr.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    if hrp:FindFirstChild("FloatBodyPosition") then
+        return false
+    end
+    local bp = Instance.new("BodyPosition")
+    bp.Name = "FloatBodyPosition"
+    bp.Position = hrp.Position + Vector3.new(0, 5, 0)
+    bp.MaxForce = Vector3.new(0, 500000, 0)
+    bp.D = 1000
+    bp.P = 10000
+    bp.Parent = hrp
+    return true
 end
 
--- Toggle Command Bar visibility with M or T
+local function unfloatPlayer(plr)
+    local char = plr.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local bp = hrp:FindFirstChild("FloatBodyPosition")
+    if bp then
+        bp:Destroy()
+        return true
+    end
+    return false
+end
+
+-- Fly variables
+local flying = false
+local flyForce
+
+local function toggleFly(plr)
+    local char = plr.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not humanoid then return false end
+
+    if flying then
+        -- Stop flying
+        if flyForce then
+            flyForce:Destroy()
+            flyForce = nil
+        end
+        humanoid.PlatformStand = false
+        flying = false
+        return "Fly mode disabled."
+    else
+        -- Start flying
+        flyForce = Instance.new("BodyVelocity")
+        flyForce.Name = "FlyForce"
+        flyForce.MaxForce = Vector3.new(100000, 100000, 100000)
+        flyForce.Velocity = Vector3.new(0, 0, 0)
+        flyForce.Parent = hrp
+        humanoid.PlatformStand = true
+        flying = true
+        return "Fly mode enabled. Use WASD and Space/Ctrl to move."
+    end
+end
+
+-- Control flying with user input
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
+    if not flying then return end
+    if gameProcessed then return end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-	if input.KeyCode == Enum.KeyCode.M or input.KeyCode == Enum.KeyCode.T then
-		screenGui.Enabled = not screenGui.Enabled
-		if screenGui.Enabled then
-			cmdBox:CaptureFocus()
-		end
-	end
+    local velocity = Vector3.new()
+
+    if input.KeyCode == Enum.KeyCode.W then
+        velocity = velocity + (workspace.CurrentCamera.CFrame.LookVector * 50)
+    elseif input.KeyCode == Enum.KeyCode.S then
+        velocity = velocity - (workspace.CurrentCamera.CFrame.LookVector * 50)
+    elseif input.KeyCode == Enum.KeyCode.A then
+        velocity = velocity - (workspace.CurrentCamera.CFrame.RightVector * 50)
+    elseif input.KeyCode == Enum.KeyCode.D then
+        velocity = velocity + (workspace.CurrentCamera.CFrame.RightVector * 50)
+    elseif input.KeyCode == Enum.KeyCode.Space then
+        velocity = velocity + Vector3.new(0, 50, 0)
+    elseif input.KeyCode == Enum.KeyCode.LeftControl then
+        velocity = velocity - Vector3.new(0, 50, 0)
+    end
+
+    if flyForce then
+        flyForce.Velocity = velocity
+    end
 end)
 
--- Execute commands when pressing enter in command box
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if not flying then return end
+    if gameProcessed then return end
+    if flyForce then
+        flyForce.Velocity = Vector3.new(0, 0, 0)
+    end
+end)
+
+-- Toggle UI with M or T keys
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.M or input.KeyCode == Enum.KeyCode.T then
+        screenGui.Enabled = not screenGui.Enabled
+        if screenGui.Enabled then
+            cmdBox:CaptureFocus()
+        end
+    end
+end)
+
 cmdBox.FocusLost:Connect(function(enterPressed)
-	if not enterPressed then return end
+    if not enterPressed then return end
+    local text = cmdBox.Text:lower()
+    cmdBox.Text = ""
+    outputLabel.Text = ""
 
-	local text = cmdBox.Text
-	cmdBox.Text = ""
-	outputLabel.Text = ""
+    if text == "/cmds" or text == "/help" then
+        helpTextLabel.Text = getHelpText()
+        helpGui.Visible = true
 
-	local args = {}
-	for word in string.gmatch(text, "%S+") do
-		table.insert(args, word)
-	end
-	local cmd = args[1] and args[1]:lower() or ""
+    elseif text == "/sit" then
+        if sitPlayer(player) then
+            outputLabel.Text = "You are now sitting."
+        else
+            outputLabel.Text = "Failed to sit."
+        end
 
-	if cmd == "/help" then
-		helpTextLabel.Text = getHelpText()
-		helpGui.Visible = true
+    elseif text == "/float" then
+        if floatPlayer(player) then
+            outputLabel.Text = "You are now floating."
+        else
+            outputLabel.Text = "You are already floating."
+        end
 
-	elseif cmd == "/speed" then
-		local speed = tonumber(args[2])
-		if speed and player.Character and player.Character:FindFirstChild("Humanoid") then
-			player.Character.Humanoid.WalkSpeed = speed
-			outputLabel.Text = "Speed set to " .. speed
-		else
-			outputLabel.Text = "Invalid speed."
-		end
+    elseif text == "/unfloat" then
+        if unfloatPlayer(player) then
+            outputLabel.Text = "Floating stopped."
+        else
+            outputLabel.Text = "You were not floating."
+        end
 
-	elseif cmd == "/time" then
-		local timeVal = tonumber(args[2])
-		if timeVal then
-			game.Lighting.ClockTime = timeVal
-			outputLabel.Text = "Time set to " .. timeVal
-		else
-			outputLabel.Text = "Invalid time."
-		end
+    elseif text == "/fly" then
+        local message = toggleFly(player)
+        outputLabel.Text = message or "Failed to toggle fly."
 
-	elseif cmd == "/spin" then
-		startSpinning()
-		outputLabel.Text = "You are now spinning!"
-
-	elseif cmd == "/stopspin" then
-		stopSpinning()
-		outputLabel.Text = "Spinning stopped."
-
-	elseif cmd == "/fly" then
-		local char = player.Character
-		if char and char:FindFirstChild("HumanoidRootPart") then
-			if char.HumanoidRootPart:FindFirstChild("FlyVelocity") then
-				outputLabel.Text = "Already flying!"
-			else
-				local bodyVelocity = Instance.new("BodyVelocity")
-				bodyVelocity.Name = "FlyVelocity"
-				bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-				bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-				bodyVelocity.Parent = char.HumanoidRootPart
-
-				-- Fly control loop
-				task.spawn(function()
-					while bodyVelocity.Parent do
-						task.wait()
-						if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-							local moveDir = Vector3.zero
-							if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-								moveDir = moveDir + workspace.CurrentCamera.CFrame.LookVector
-							end
-							if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-								moveDir = moveDir - workspace.CurrentCamera.CFrame.LookVector
-							end
-							if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-								moveDir = moveDir - workspace.CurrentCamera.CFrame.RightVector
-							end
-							if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-								moveDir = moveDir + workspace.CurrentCamera.CFrame.RightVector
-							end
-							if moveDir.Magnitude > 0 then
-								moveDir = moveDir.Unit
-							end
-							bodyVelocity.Velocity = moveDir * 50 -- Fly speed
-						end
-					end
-				end)
-
-				outputLabel.Text = "You are now flying. Use WASD to move."
-			end
-		else
-			outputLabel.Text = "Character or HumanoidRootPart not found."
-		end
-
-	elseif cmd == "/unfly" then
-		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if hrp and hrp:FindFirstChild("FlyVelocity") then
-			hrp.FlyVelocity:Destroy()
-			outputLabel.Text = "You stopped flying."
-		else
-			outputLabel.Text = "You are not flying."
-		end
-
-	elseif cmd ~= "" then
-		outputLabel.Text = "Unknown command: " .. cmd
-	end
+    else
+        outputLabel.Text = "Unknown command."
+    end
 end)
