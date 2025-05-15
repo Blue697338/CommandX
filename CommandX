@@ -69,7 +69,7 @@ helpTitle.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 helpTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 helpTitle.Font = Enum.Font.SourceSansBold
 helpTitle.TextSize = 20
-helpTitle.Text = "CommandX Help"
+helpTitle.Text = "Admin Commands Help"
 helpTitle.Parent = helpGui
 
 -- Help Close Button
@@ -106,6 +106,7 @@ local commands = {
 	["/help"] = "Show this help window.",
 	["/speed"] = "Change WalkSpeed. Usage: /speed [number]",
 	["/time"] = "Change game time. Usage: /time [number]",
+	["/spin"] = "Make your character spin continuously.",
 }
 
 local function getHelpText()
@@ -114,6 +115,30 @@ local function getHelpText()
 		text = text .. cmd .. " - " .. desc .. "\n\n"
 	end
 	return text
+end
+
+-- Variable to keep track of spinning coroutine so we can stop it later if needed
+local spinCoroutine
+local spinning = false
+
+local function startSpinning()
+	if spinning then return end
+	spinning = true
+
+	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		local hrp = player.Character.HumanoidRootPart
+		spinCoroutine = coroutine.create(function()
+			while spinning and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do
+				hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(5), 0)
+				wait(0.03)
+			end
+		end)
+		coroutine.resume(spinCoroutine)
+	end
+end
+
+local function stopSpinning()
+	spinning = false
 end
 
 -- Toggle Command Bar visibility with M or T
@@ -163,6 +188,14 @@ cmdBox.FocusLost:Connect(function(enterPressed)
 		else
 			outputLabel.Text = "Invalid time."
 		end
+
+	elseif cmd == "/spin" then
+		startSpinning()
+		outputLabel.Text = "You are now spinning!"
+
+	elseif cmd == "/stopspin" then
+		stopSpinning()
+		outputLabel.Text = "Spinning stopped."
 
 	elseif cmd ~= "" then
 		outputLabel.Text = "Unknown command: " .. cmd
