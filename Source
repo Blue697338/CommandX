@@ -1,239 +1,189 @@
-local player = game.Players.LocalPlayer
-local PlayerGui = player:WaitForChild("PlayerGui")
 
-local guiName = "AdminGui"
-local flying = false
 
-local UIS = game:GetService("UserInputService")
-local RS = game:GetService("RunService")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 
-local commands = {
-	["/help"] = "Show list of available commands.",
-	["/fly"] = "Fly your character.",
-	["/unfly"] = "Unfly your character.",
-	["/speed"] = "Change your walk speed. Usage: /speed [number]",
-	["/fling"] = "Fling your character forcefully.",
-}
+local player = Players.LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "CommandXGui"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
-local flyingSpeed = 80
-local bv
+-- Logo ImageButton (draggable)
+local logo = Instance.new("ImageButton")
+logo.Size = UDim2.new(0, 60, 0, 60)
+logo.Position = UDim2.new(0, 30, 0, 30)
+logo.BackgroundTransparency = 1
+logo.Image = "rbxassetid://132861457951474"
+logo.Name = "CommandLogo"
+logo.Draggable = true
+logo.Parent = gui
 
--- We'll track key states here for smooth flying controls:
-local keysDown = {
-	W = false,
-	A = false,
-	S = false,
-	D = false,
-	Space = false,
-}
+-- Command Bar
+local commandBar = Instance.new("TextBox")
+commandBar.Size = UDim2.new(0, 400, 0, 40)
+commandBar.Position = UDim2.new(0.5, -200, 1, -60)
+commandBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+commandBar.TextColor3 = Color3.new(1, 1, 1)
+commandBar.Font = Enum.Font.GothamBold
+commandBar.TextSize = 24
+commandBar.PlaceholderText = "Enter command..."
+commandBar.Text = ""
+commandBar.BorderSizePixel = 0
+commandBar.Visible = false
+commandBar.Parent = gui
 
--- Helper to compute fly direction based on keys pressed:
-local function getFlyDirection()
-	local dir = Vector3.new()
-	if keysDown.W then dir = dir + Vector3.new(0, 0, -1) end
-	if keysDown.S then dir = dir + Vector3.new(0, 0, 1) end
-	if keysDown.A then dir = dir + Vector3.new(-1, 0, 0) end
-	if keysDown.D then dir = dir + Vector3.new(1, 0, 0) end
-	if keysDown.Space then dir = dir + Vector3.new(0, 1, 0) end
-	return dir.Unit or Vector3.new()
-end
-
-local function createGUI()
-	-- Remove old GUI if any
-	local oldGui = PlayerGui:FindFirstChild(guiName)
-	if oldGui then oldGui:Destroy() end
-
-	-- GUI Setup
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = guiName
-	screenGui.Parent = PlayerGui
-
-	local mainFrame = Instance.new("Frame")
-	mainFrame.Size = UDim2.new(0, 300, 0, 200)
-	mainFrame.Position = UDim2.new(0, 10, 0.5, -100)
-	mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-	mainFrame.BorderSizePixel = 0
-	mainFrame.Parent = screenGui
-
-	local cmdBox = Instance.new("TextBox")
-	cmdBox.Size = UDim2.new(1, -20, 0, 30)
-	cmdBox.Position = UDim2.new(0, 10, 1, -40)
-	cmdBox.PlaceholderText = "Type command here..."
-	cmdBox.TextColor3 = Color3.new(1, 1, 1)
-	cmdBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-	cmdBox.ClearTextOnFocus = true
-	cmdBox.Parent = mainFrame
-
-	local outputLabel = Instance.new("TextLabel")
-	outputLabel.Size = UDim2.new(1, -20, 1, -50)
-	outputLabel.Position = UDim2.new(0, 10, 0, 10)
-	outputLabel.TextColor3 = Color3.new(1, 1, 1)
-	outputLabel.BackgroundTransparency = 1
-	outputLabel.TextXAlignment = Enum.TextXAlignment.Left
-	outputLabel.TextYAlignment = Enum.TextYAlignment.Top
-	outputLabel.TextWrapped = true
-	outputLabel.TextScaled = false
-	outputLabel.Text = ""
-	outputLabel.Parent = mainFrame
-
-	-- Flying functions inside the GUI context
-	local function startFlying()
-		local char = player.Character
-		if not char then
-			outputLabel.Text = "Character not loaded."
-			return
-		end
-
-		local hrp = char:FindFirstChild("HumanoidRootPart")
-		local humanoid = char:FindFirstChild("Humanoid")
-		if not hrp or not humanoid then
-			outputLabel.Text = "Missing HumanoidRootPart or Humanoid."
-			return
-		end
-
-		if bv and bv.Parent then bv:Destroy() end
-		bv = Instance.new("BodyVelocity")
-		bv.Name = "FlyVelocity"
-		bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-		bv.Velocity = Vector3.new()
-		bv.Parent = hrp
-
-		flying = true
-		outputLabel.Text = "Flying enabled."
-
-		-- Fly loop, runs every frame
-		local conn
-		conn = RS.RenderStepped:Connect(function()
-			if not flying or not bv.Parent then
-				conn:Disconnect()
-				if bv and bv.Parent then
-					bv:Destroy()
-				end
-				return
-			end
-
-			local cf = workspace.CurrentCamera.CFrame
-			local dir = getFlyDirection()
-			bv.Velocity = cf:VectorToWorldSpace(dir) * flyingSpeed
-		end)
+-- Toggle command bar on logo click
+logo.MouseButton1Click:Connect(function()
+	commandBar.Visible = not commandBar.Visible
+	if commandBar.Visible then
+		commandBar:CaptureFocus()
+	else
+		commandBar:ReleaseFocus()
 	end
-
-	local function stopFlying()
-		flying = false
-		if bv and bv.Parent then bv:Destroy() end
-		outputLabel.Text = "Flying disabled."
-	end
-
-	-- Input handlers for flying keys
-	local function onInputBegan(input, gameProcessed)
-		if gameProcessed then return end
-		if input.UserInputType == Enum.UserInputType.Keyboard then
-			local keyName = input.KeyCode.Name
-			if keysDown[keyName] ~= nil then
-				keysDown[keyName] = true
-			end
-		end
-	end
-
-	local function onInputEnded(input, gameProcessed)
-		if gameProcessed then return end
-		if input.UserInputType == Enum.UserInputType.Keyboard then
-			local keyName = input.KeyCode.Name
-			if keysDown[keyName] ~= nil then
-				keysDown[keyName] = false
-			end
-		end
-	end
-
-	-- Connect input only once when GUI created
-	UIS.InputBegan:Connect(onInputBegan)
-	UIS.InputEnded:Connect(onInputEnded)
-
-	-- Command handler
-	cmdBox.FocusLost:Connect(function(enterPressed)
-		if not enterPressed then return end
-
-		local input = cmdBox.Text
-		local args = input:split(" ")
-		local cmd = args[1]:lower()
-
-		if cmd == "/help" then
-			local list = "Available commands:\n"
-			for k, v in pairs(commands) do
-				list = list .. k .. " - " .. v .. "\n"
-			end
-			outputLabel.Text = list
-
-		elseif cmd == "/fly" then
-			if not flying then
-				startFlying()
-			else
-				outputLabel.Text = "Already flying."
-			end
-
-		elseif cmd == "/unfly" then
-			if flying then
-				stopFlying()
-			else
-				outputLabel.Text = "Not flying."
-			end
-
-		elseif cmd == "/speed" then
-			local speed = tonumber(args[2])
-			if speed then
-				local char = player.Character
-				if char and char:FindFirstChild("Humanoid") then
-					char.Humanoid.WalkSpeed = speed
-					outputLabel.Text = "Speed set to " .. speed
-				else
-					outputLabel.Text = "No humanoid found."
-				end
-			else
-				outputLabel.Text = "Invalid speed value."
-			end
-
-		elseif cmd == "/fling" then
-			local char = player.Character
-			if char and char:FindFirstChild("HumanoidRootPart") then
-				local hrp = char.HumanoidRootPart
-
-				for _, child in ipairs(hrp:GetChildren()) do
-					if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
-						child:Destroy()
-					end
-				end
-
-				local flingBV = Instance.new("BodyVelocity")
-				flingBV.Velocity = Vector3.new(0, 500, 0)
-				flingBV.MaxForce = Vector3.new(400000, 400000, 400000)
-				flingBV.Parent = hrp
-				game.Debris:AddItem(flingBV, 0.3)
-				outputLabel.Text = "Flinged!"
-			else
-				outputLabel.Text = "No character found."
-			end
-
-		else
-			outputLabel.Text = "Unknown command. Type /help for commands."
-		end
-
-		cmdBox.Text = ""
-	end)
-end
-
--- Create GUI initially
-createGUI()
-
--- Recreate GUI on respawn (with short wait)
-player.CharacterAdded:Connect(function()
-	wait(1)
-	createGUI()
 end)
 
--- Recreate GUI if removed accidentally
-PlayerGui.ChildRemoved:Connect(function(child)
-	if child.Name == guiName then
-		wait(0.5)
-		createGUI()
+-- Fly system
+local flying = false
+local bodyVelocity
+local function toggleFly()
+	local char = player.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChild("Humanoid")
+	if not hrp or not hum then return end
+
+	if flying then
+		flying = false
+		if bodyVelocity then bodyVelocity:Destroy() end
+		hum.PlatformStand = false
+	else
+		flying = true
+		bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+		bodyVelocity.Velocity = Vector3.zero
+		bodyVelocity.Parent = hrp
+		hum.PlatformStand = true
 	end
+end
+
+RunService.Heartbeat:Connect(function()
+	if flying and player.Character then
+		local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+		if hrp and bodyVelocity then
+			local cam = workspace.CurrentCamera.CFrame
+			local dir = Vector3.zero
+
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0,1,0) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0,1,0) end
+
+			bodyVelocity.Velocity = dir.Magnitude > 0 and dir.Unit * 50 or Vector3.zero
+		end
+	end
+end)
+
+-- Help GUI
+local helpFrame = Instance.new("Frame")
+helpFrame.Size = UDim2.new(0, 300, 0, 400)
+helpFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+helpFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+helpFrame.BorderSizePixel = 0
+helpFrame.Visible = false
+helpFrame.Draggable = true
+helpFrame.Active = true
+helpFrame.Parent = gui
+
+local helpTitle = Instance.new("TextLabel")
+helpTitle.Size = UDim2.new(1, 0, 0, 40)
+helpTitle.BackgroundTransparency = 1
+helpTitle.Text = "CommandX Help"
+helpTitle.TextColor3 = Color3.new(1, 1, 1)
+helpTitle.Font = Enum.Font.GothamBold
+helpTitle.TextSize = 24
+helpTitle.Parent = helpFrame
+
+local helpContent = Instance.new("TextLabel")
+helpContent.Position = UDim2.new(0, 10, 0, 50)
+helpContent.Size = UDim2.new(1, -20, 1, -60)
+helpContent.TextColor3 = Color3.new(1, 1, 1)
+helpContent.BackgroundTransparency = 1
+helpContent.TextWrapped = true
+helpContent.TextYAlignment = Enum.TextYAlignment.Top
+helpContent.Font = Enum.Font.Gotham
+helpContent.TextSize = 16
+helpContent.Text = "Commands:\n/fly, /unfly, /speed [n], /jump, /sit, /reset, /time [h], /jumpheight [n], /gravity [n], /version, /welcome"
+helpContent.Parent = helpFrame
+
+-- Commands
+local commands = {
+	fly = function() toggleFly() end,
+	unfly = function() if flying then toggleFly() end end,
+	speed = function(args)
+		local hum = player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+		if hum and tonumber(args[2]) then
+			hum.WalkSpeed = tonumber(args[2])
+		end
+	end,
+	walkspeed = function(args) commands.speed(args) end,
+	jump = function()
+		local hum = player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+		if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+	end,
+	sit = function()
+		local hum = player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+		if hum then hum.Sit = true end
+	end,
+	reset = function()
+		local char = player.Character
+		if char then char:BreakJoints() end
+	end,
+	time = function(args)
+		if args[2] and tonumber(args[2]) then
+			Lighting.TimeOfDay = args[2] .. ":00:00"
+		end
+	end,
+	jumpheight = function(args)
+		local hum = player.Character and player.Character:FindFirstChildWhichIsA("Humanoid")
+		if hum and tonumber(args[2]) then hum.JumpHeight = tonumber(args[2]) end
+	end,
+	gravity = function(args)
+		if args[2] and tonumber(args[2]) then
+			workspace.Gravity = tonumber(args[2])
+		end
+	end,
+	version = function()
+		print("CommandX Admin v1")
+	end,
+	welcome = function()
+		print("Welcome to CommandX!")
+	end,
+	help = function()
+		helpFrame.Visible = not helpFrame.Visible
+	end,
+	-- add more custom commands here...
+}
+
+commandBar.FocusLost:Connect(function(enter)
+	if not enter then return end
+	local input = commandBar.Text
+	local args = input:lower():split(" ")
+	local cmd = args[1]
+	if commands[cmd] then
+		local success, err = pcall(function()
+			commands[cmd](args)
+		end)
+		if not success then
+			warn("Command bar error:", err)
+		end
+	else
+		warn("Unknown command: " .. input)
+	end
+	commandBar.Text = ""
 end)
